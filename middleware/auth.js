@@ -2,11 +2,11 @@ require('dotenv').config();
 const ErrorHandler = require("../utils/ErrorHandler");
 const catchAsyncErrors = require("./catchAsyncErrors");
 const jwt = require("jsonwebtoken");
-const User = require("../model/user");
+const User = require("../model/User");
 
 exports.isAuthenticated = catchAsyncErrors(async (req, res, next) => {
   const token = req.headers.authorization;
-  console.log("ini token",token)
+  console.log("ini token", token)
   if (!token) {
     return next(new ErrorHandler("Please login to continue", 401));
   }

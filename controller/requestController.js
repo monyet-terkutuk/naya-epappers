@@ -86,7 +86,6 @@ router.post(
     })
 );
 
-// ✅ GET /:id — ambil satu request
 router.get(
     "/:id",
     isAuthenticated,
@@ -101,10 +100,39 @@ router.get(
             });
         }
 
+        const {
+            _id,
+            title,
+            type,
+            body,
+            description,
+            date,
+            status,
+            createdAt,
+            updatedAt,
+            user_id,
+        } = request;
+
         res.status(200).json({
             code: 200,
             status: "success",
-            data: request,
+            data: {
+                id: _id,
+                title,
+                type,
+                body,
+                description,
+                date,
+                status,
+                createdAt,
+                updatedAt,
+                user: user_id
+                    ? {
+                        id: user_id._id,
+                        name: user_id.name,
+                    }
+                    : null,
+            },
         });
     })
 );

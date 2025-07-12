@@ -130,12 +130,26 @@ router.get(
                     ? {
                         id: user_id._id,
                         name: user_id.name,
+                        email: user_id.email,
+                        address: user_id.address,
+                        phone: user_id.phone,
+                        birthdate: user_id.birthdate,
+                        place_of_birth: user_id.place_of_birth,
+                        image: user_id.image,
+                        gender: user_id.gender,
+                        class_name: user_id.class_name,
+                        role: user_id.role,
+                        nisn: user_id.nisn,
+                        nis: user_id.nis,
+                        createdAt: user_id.createdAt,
+                        updatedAt: user_id.updatedAt,
                     }
                     : null,
             },
         });
     })
 );
+
 
 // ✅ PUT /update/:id — update request
 router.put(

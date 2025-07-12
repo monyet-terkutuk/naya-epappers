@@ -47,6 +47,7 @@ const paymentMethod = require("./controller/paymetMethodController");
 const service = require("./controller/serviceController");
 const booking = require("./controller/bookingController");
 const request = require("./controller/requestController");
+const template = require("./controller/templateController");
 
 // define routes
 app.use("/users", user);
@@ -55,6 +56,7 @@ app.use("/payment-method", paymentMethod);
 app.use("/service", service);
 app.use("/booking", booking);
 app.use("/request", request);
+app.use("/template", template);
 
 
 

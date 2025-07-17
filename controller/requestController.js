@@ -88,7 +88,6 @@ router.post(
 
 router.get(
     "/:id",
-    isAuthenticated,
     catchAsyncErrors(async (req, res) => {
         const request = await Request.findById(req.params.id).populate("user_id");
 

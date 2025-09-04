@@ -7,10 +7,10 @@ const requestSchema = new Schema(
             type: String,
             required: true,
         },
-        type: {
-            type: String,
-            required: true,
-        },
+        // type: {
+        //     type: String,
+        //     required: true,
+        // },
         body: {
             type: String,
             required: true,
@@ -27,6 +27,11 @@ const requestSchema = new Schema(
             type: String,
             enum: ['Di Proses', 'Menunggu', 'Selesai', 'Di Tolak'],
             default: 'Menunggu',
+        },
+        category_id: {
+            type: Schema.Types.ObjectId,
+            ref: "Category",
+            required: true
         },
         user_id: {
             type: Schema.Types.ObjectId,

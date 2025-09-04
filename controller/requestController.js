@@ -1,17 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
 const Request = require("../model/Request");
-const User = require("../model/User");
+const Category = require("../model/Category");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const { isAuthenticated } = require("../middleware/auth");
-
-// Bobot tipe surat
-const suratWeights = {
-    "Dispensasi": 1.0,
-    "Keterangan Aktif": 0.6,
-    "Kelakuan Baik": 0.4
-};
 
 // Fungsi normalisasi tanggal: semakin dekat tanggalnya, makin tinggi urgensinya
 const normalizeDateUrgency = (date) => {
@@ -28,17 +20,27 @@ router.get(
     "/list",
     isAuthenticated,
     catchAsyncErrors(async (req, res) => {
-        const requests = await Request.find().populate("user_id");
+        const requests = await Request.find()
+            .populate("user_id")
+            .populate("category_id"); // ambil category data
 
-        const scored = requests.map(req => {
-            const typeWeight = suratWeights[req.type.toLowerCase()] || 0;
+        const scored = requests.map((req) => {
+            const typeWeight = req.category_id?.bobot || 0; // ambil bobot dari category
             const dateUrgency = normalizeDateUrgency(req.date);
-            const score = (0.6 * typeWeight) + (0.4 * dateUrgency);
+            const score = 0.6 * typeWeight + 0.4 * dateUrgency;
 
             return {
                 id: req._id,
                 title: req.title,
-                type: req.type,
+                type: req.category_id?.name, // tampilkan nama category
+                category: req.category_id
+                    ? {
+                        id: req.category_id._id,
+                        name: req.category_id.name,
+                        description: req.category_id.description,
+                        bobot: req.category_id.bobot,
+                    }
+                    : null,
                 date: req.date,
                 body: req.body,
                 description: req.description,
@@ -48,7 +50,7 @@ router.get(
                     name: req.user_id?.name,
                     email: req.user_id?.email,
                 },
-                score
+                score,
             };
         });
 
@@ -57,7 +59,7 @@ router.get(
         res.status(200).json({
             code: 200,
             status: "success",
-            data: scored
+            data: scored,
         });
     })
 );
@@ -67,14 +69,24 @@ router.post(
     "",
     isAuthenticated,
     catchAsyncErrors(async (req, res) => {
-        const { title, type, body, description, date } = req.body;
+        const { title, body, description, date, category_id } = req.body;
+
+        // Pastikan category valid
+        const category = await Category.findById(category_id);
+        if (!category) {
+            return res.status(400).json({
+                code: 400,
+                status: "error",
+                message: "Invalid category_id",
+            });
+        }
 
         const request = await Request.create({
             title,
-            type,
             body,
             description,
             date,
+            category_id,
             user_id: req.user.id,
         });
 
@@ -86,10 +98,13 @@ router.post(
     })
 );
 
+// ✅ GET /:id
 router.get(
     "/:id",
     catchAsyncErrors(async (req, res) => {
-        const request = await Request.findById(req.params.id).populate("user_id");
+        const request = await Request.findById(req.params.id)
+            .populate("user_id")
+            .populate("category_id");
 
         if (!request) {
             return res.status(404).json({
@@ -99,69 +114,51 @@ router.get(
             });
         }
 
-        const {
-            _id,
-            title,
-            type,
-            body,
-            description,
-            date,
-            status,
-            createdAt,
-            updatedAt,
-            user_id,
-        } = request;
-
         res.status(200).json({
             code: 200,
             status: "success",
             data: {
-                id: _id,
-                title,
-                type,
-                body,
-                description,
-                date,
-                status,
-                createdAt,
-                updatedAt,
-                user: user_id
-                    ? {
-                        id: user_id._id,
-                        name: user_id.name,
-                        email: user_id.email,
-                        address: user_id.address,
-                        phone: user_id.phone,
-                        birthdate: user_id.birthdate,
-                        place_of_birth: user_id.place_of_birth,
-                        image: user_id.image,
-                        gender: user_id.gender,
-                        class_name: user_id.class_name,
-                        role: user_id.role,
-                        nisn: user_id.nisn,
-                        nis: user_id.nis,
-                        createdAt: user_id.createdAt,
-                        updatedAt: user_id.updatedAt,
-                    }
-                    : null,
+                id: request._id,
+                title: request.title,
+                type: request.category_id?.name,
+                category: request.category_id,
+                body: request.body,
+                description: request.description,
+                date: request.date,
+                status: request.status,
+                createdAt: request.createdAt,
+                updatedAt: request.updatedAt,
+                user: request.user_id,
             },
         });
     })
 );
 
-
-// ✅ PUT /update/:id — update request
+// ✅ PUT /update/:id
 router.put(
     "/:id",
     isAuthenticated,
     catchAsyncErrors(async (req, res) => {
-        const { title, type, body, description, date, status } = req.body;
+        const { title, body, description, date, status, category_id } = req.body;
+
+        if (category_id) {
+            const category = await Category.findById(category_id);
+            if (!category) {
+                return res.status(400).json({
+                    code: 400,
+                    status: "error",
+                    message: "Invalid category_id",
+                });
+            }
+        }
 
         const updated = await Request.findByIdAndUpdate(
             req.params.id,
-            { title, type, body, description, date, status },
+            { title, body, description, date, status, category_id },
             { new: true }
-        );
+        )
+            .populate("user_id")
+            .populate("category_id");
 
         if (!updated) {
             return res.status(404).json({
@@ -179,7 +176,7 @@ router.put(
     })
 );
 
-// ✅ DELETE /delete/:id — hapus request
+// ✅ DELETE /delete/:id
 router.delete(
     "/:id",
     isAuthenticated,

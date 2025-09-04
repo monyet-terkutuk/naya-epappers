@@ -11,9 +11,14 @@ const templateSchema = new Schema(
             type: String,
             required: true,
         },
-        type: {
-            type: String,
-            required: true,
+        // type: {
+        //     type: String,
+        //     required: true,
+        // },
+        category_id: {
+            type: Schema.Types.ObjectId,
+            ref: "Category",
+            required: true
         },
     },
     { timestamps: true },

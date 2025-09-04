@@ -1,32 +1,31 @@
 const express = require('express');
-const Service = require('../model/Service'); // Assuming the model is stored in the model directory
+const Category = require('../model/Category'); // asumsi path ke model Category
 const router = express.Router();
-const { isAuthenticated, isAdmin } = require('../middleware/auth'); // Assuming you have authentication middleware
 
-// CREATE - Create a new service
+// CREATE - Create a new category
 router.post('', async (req, res) => {
     try {
-        const { name, description, price } = req.body;
+        const { name, description, bobot } = req.body;
 
-        // Check if service already exists
-        const existingService = await Service.findOne({ name });
-        if (existingService) {
+        // Check if category already exists
+        const existingCategory = await Category.findOne({ name });
+        if (existingCategory) {
             return res.status(400).json({
                 code: 400,
                 status: 'error',
                 data: {
-                    error: 'Service with this name already exists',
+                    error: 'Category with this name already exists',
                 },
             });
         }
 
-        const newService = new Service({ name, description, price });
-        await newService.save();
+        const newCategory = new Category({ name, description, bobot });
+        await newCategory.save();
 
         return res.status(201).json({
             code: 201,
             status: 'success',
-            data: newService,
+            data: newCategory,
         });
     } catch (error) {
         return res.status(500).json({
@@ -39,14 +38,14 @@ router.post('', async (req, res) => {
     }
 });
 
-// READ - Get all services
-router.get('', async (req, res) => {
+// READ - Get all categories
+router.get('/list', async (req, res) => {
     try {
-        const services = await Service.find();
+        const categories = await Category.find();
         return res.status(200).json({
             code: 200,
             status: 'success',
-            data: services,
+            data: categories,
         });
     } catch (error) {
         return res.status(500).json({
@@ -59,24 +58,24 @@ router.get('', async (req, res) => {
     }
 });
 
-// READ - Get a specific service by ID
-router.get('/service/:id', async (req, res) => {
+// READ - Get a specific category by ID
+router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const service = await Service.findById(id);
-        if (!service) {
+        const category = await Category.findById(id);
+        if (!category) {
             return res.status(404).json({
                 code: 404,
                 status: 'error',
                 data: {
-                    error: 'Service not found',
+                    error: 'Category not found',
                 },
             });
         }
         return res.status(200).json({
             code: 200,
             status: 'success',
-            data: service,
+            data: category,
         });
     } catch (error) {
         return res.status(500).json({
@@ -89,33 +88,33 @@ router.get('/service/:id', async (req, res) => {
     }
 });
 
-// UPDATE - Update a service by ID
-router.put('/service/:id', async (req, res) => {
+// UPDATE - Update a category by ID
+router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, price } = req.body;
+        const { name, description, bobot } = req.body;
 
-        const service = await Service.findById(id);
-        if (!service) {
+        const category = await Category.findById(id);
+        if (!category) {
             return res.status(404).json({
                 code: 404,
                 status: 'error',
                 data: {
-                    error: 'Service not found',
+                    error: 'Category not found',
                 },
             });
         }
 
-        service.name = name || service.name;
-        service.description = description || service.description;
-        service.price = price || service.price;
+        category.name = name || category.name;
+        category.description = description || category.description;
+        category.bobot = bobot || category.bobot;
 
-        await service.save();
+        await category.save();
 
         return res.status(200).json({
             code: 200,
             status: 'success',
-            data: service,
+            data: category,
         });
     } catch (error) {
         return res.status(500).json({
@@ -128,29 +127,28 @@ router.put('/service/:id', async (req, res) => {
     }
 });
 
-// DELETE - Delete a service by ID
-router.delete('/service/:id', async (req, res) => {
+// DELETE - Delete a category by ID
+router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
-        const service = await Service.findById(id);
-        if (!service) {
+        const category = await Category.findByIdAndDelete(id);
+        if (!category) {
             return res.status(404).json({
                 code: 404,
                 status: 'error',
                 data: {
-                    error: 'Service not found',
+                    error: 'Category not found',
                 },
             });
         }
 
-        await service.remove();
 
         return res.status(200).json({
             code: 200,
             status: 'success',
             data: {
-                message: 'Service deleted successfully',
+                message: 'Category deleted successfully',
             },
         });
     } catch (error) {

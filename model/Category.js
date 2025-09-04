@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { model, Schema } = mongoose;
 
-const serviceSchema = new Schema(
+const categorySchema = new Schema(
     {
         name: {
             type: String,
@@ -10,9 +10,8 @@ const serviceSchema = new Schema(
         },
         description: {
             type: String,
-            required: true,
         },
-        price: {
+        bobot: {
             type: Number,
             required: true,
         },
@@ -20,4 +19,4 @@ const serviceSchema = new Schema(
     { timestamps: true },
 );
 
-module.exports = model('Service', serviceSchema);
+module.exports = model('Category', categorySchema);

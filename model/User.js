@@ -12,31 +12,20 @@ const userSchema = new Schema(
       required: true,
       unique: true,
     },
-    address: String,
     password: {
       type: String,
       required: true,
     },
     phone: {
       type: String,
-      required: true,
+      required: false,
     },
-    birthdate: Date,
-    place_of_birth: String,
-    image: String,
-    gender: {
-      type: String,
-      enum: ['laki-laki', 'perempuan'],
-    },
-    class_name: String,
     role: {
       type: String,
-      enum: ['admin', 'user', 'kepala_sekolah', 'petugas'],
-      default: 'user',
+      enum: ['walikelas', 'operator'],
+      default: 'walikelas',
       required: true,
     },
-    nisn: String,
-    nis: String,
   },
   { timestamps: true }
 );

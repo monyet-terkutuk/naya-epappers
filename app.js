@@ -42,15 +42,11 @@ if (process.env.NODE_ENV !== "PRODUCTION") {
 
 // import routes
 const user = require("./controller/user");
-const category = require("./controller/categoryController");
-const request = require("./controller/requestController");
-const template = require("./controller/templateController");
+const siswa = require("./controller/siswaController");
 
 // define routes
 app.use("/users", user);
-app.use("/categories", category);
-app.use("/request", request);
-app.use("/template", template);
+app.use("/siswa", siswa);
 
 
 

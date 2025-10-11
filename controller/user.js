@@ -10,214 +10,431 @@ const ErrorHandler = require("../utils/ErrorHandler");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const { isAuthenticated, isAdmin } = require("../middleware/auth");
 
-// /**
-//  * @route   POST /register
-//  * @desc    Register new user
-//  */
-router.post("/register", async (req, res, next) => {
-  try {
-    const schema = {
-      name: { type: "string", empty: false, max: 255 },
-      password: { type: "string", empty: false, max: 255 },
-      email: { type: "email", empty: false },
-      address: { type: "string", optional: true },
-      role: { type: "string", empty: false, max: 255 },
-      phone: { type: "string", empty: false, max: 15 },
-      birthdate: { type: "string", optional: true },
-      place_of_birth: { type: "string", optional: true },
-      image: { type: "string", optional: true },
-      nisn: { type: "string", optional: true },
-      nis: { type: "string", optional: true },
-    };
+/**
+ * @route   POST /register
+ * @desc    Register new user
+ */
+router.post("/register", catchAsyncErrors(async (req, res, next) => {
+  const schema = {
+    name: { type: "string", empty: false, max: 255 },
+    email: { type: "email", empty: false },
+    password: { type: "string", min: 6, empty: false },
+    phone: { type: "string", optional: true, max: 15 },
+    role: { type: "string", enum: ["walikelas", "operator"], empty: false }
+  };
 
-    const { body } = req;
-    const validation = v.validate(body, schema);
+  const validation = v.validate(req.body, schema);
 
-    if (validation !== true) {
-      return res.status(400).json({
-        code: 400,
-        status: "error",
-        data: { error: "Validation failed", details: validation },
-      });
-    }
-
-    const emailUsed = await User.findOne({ email: body.email });
-    const usernameUsed = await User.findOne({ name: body.username });
-
-    if (emailUsed || usernameUsed) {
-      return res.status(400).json({
-        code: 400,
-        status: "error",
-        data: {
-          error: emailUsed ? "Email has been used" : "Username has been used",
-        },
-      });
-    }
-
-    const hashedPassword = bcrypt.hashSync(body.password, 10);
-
-    const user = await User.create({
-      ...body,
-      password: hashedPassword,
+  if (validation !== true) {
+    return res.status(400).json({
+      code: 400,
+      status: "error",
+      message: "Validation failed",
+      data: validation,
     });
-
-    return res.status(200).json({
-      code: 200,
-      status: "success",
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        address: user.address,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    return next(new ErrorHandler(error.message, 400));
   }
-});
 
-// /**
-//  * @route   POST /login
-//  * @desc    Authenticate user and return token
-//  */
+  const { name, email, password, phone, role } = req.body;
 
-router.post("/login", async (req, res, next) => {
+  // Check if email already exists
+  const emailUsed = await User.findOne({ email });
+  if (emailUsed) {
+    return res.status(400).json({
+      code: 400,
+      status: "error",
+      message: "Email has been used",
+    });
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  // Create user
+  const user = await User.create({
+    name,
+    email,
+    password: hashedPassword,
+    phone: phone || "",
+    role
+  });
+
+  return res.status(201).json({
+    code: 201,
+    status: "success",
+    message: "User registered successfully",
+    data: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      createdAt: user.createdAt
+    },
+  });
+}));
+
+/**
+ * @route   POST /login
+ * @desc    Authenticate user and return token
+ */
+router.post("/login", catchAsyncErrors(async (req, res, next) => {
   const { email, password } = req.body;
 
   const schema = {
     email: { type: "email", empty: false },
-    password: { type: "string", min: 8, empty: false },
+    password: { type: "string", empty: false },
   };
 
-  try {
+  const validation = v.validate(req.body, schema);
+  if (validation !== true) {
+    return res.status(400).json({
+      code: 400,
+      status: "error",
+      message: "Validation failed",
+      data: validation,
+    });
+  }
+
+  // Find user by email
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(401).json({
+      code: 401,
+      status: "error",
+      message: "Invalid email or password",
+    });
+  }
+
+  // Check password
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(401).json({
+      code: 401,
+      status: "error",
+      message: "Invalid email or password",
+    });
+  }
+
+  // Generate JWT token
+  const token = jwt.sign(
+    {
+      id: user._id,
+      role: user.role,
+      name: user.name,
+      email: user.email
+    },
+    process.env.JWT_SECRET_KEY,
+    { expiresIn: "24h" }
+  );
+
+  return res.status(200).json({
+    code: 200,
+    status: "success",
+    message: "Login successful",
+    data: {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      },
+      token,
+    },
+  });
+}));
+
+/**
+ * @route   GET /profile
+ * @desc    Get current user profile
+ */
+router.get(
+  "/profile",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        code: 404,
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      code: 200,
+      status: "success",
+      message: "Profile retrieved successfully",
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      },
+    });
+  })
+);
+
+/**
+ * @route   PUT /profile
+ * @desc    Update current user profile
+ */
+router.put(
+  "/profile",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    const schema = {
+      name: { type: "string", optional: true, max: 255 },
+      phone: { type: "string", optional: true, max: 15 },
+    };
+
     const validation = v.validate(req.body, schema);
     if (validation !== true) {
       return res.status(400).json({
-        meta: {
-          message: "Validation failed",
-          code: 400,
-          status: "error",
-        },
+        code: 400,
+        status: "error",
+        message: "Validation failed",
         data: validation,
       });
     }
 
-    const user = await User.findOne({ email });
-    if (!user || !user.password) {
-      return res.status(401).json({
-        meta: {
-          message: "Invalid email or password",
-          code: 401,
-          status: "error",
-        },
-      });
-    }
+    const { name, phone } = req.body;
+    const updateData = {};
 
-    const isMatch = bcrypt.compareSync(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({
-        meta: {
-          message: "Invalid email or password",
-          code: 401,
-          status: "error",
-        },
-      });
-    }
+    if (name) updateData.name = name;
+    if (phone) updateData.phone = phone;
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET_KEY,
-      { expiresIn: "24h" }
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true, runValidators: true }
     );
 
-    return res.status(200).json({
-      meta: {
-        message: "Authentication successful",
-        code: 200,
-        status: "success",
-      },
+    res.status(200).json({
+      code: 200,
+      status: "success",
+      message: "Profile updated successfully",
       data: {
         id: user._id,
-        user,
-        token,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        updatedAt: user.updatedAt
       },
     });
-  } catch (error) {
-    return next(new ErrorHandler(error.message, 500));
-  }
-});
+  })
+);
 
-// /**
-//  * @route   GET /list
-//  * @desc    Get all users
-//  */
+/**
+ * @route   PUT /change-password
+ * @desc    Change user password
+ */
+router.put(
+  "/change-password",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    const schema = {
+      currentPassword: { type: "string", empty: false },
+      newPassword: { type: "string", min: 6, empty: false },
+    };
 
+    const validation = v.validate(req.body, schema);
+    if (validation !== true) {
+      return res.status(400).json({
+        code: 400,
+        status: "error",
+        message: "Validation failed",
+        data: validation,
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        code: 404,
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        code: 400,
+        status: "error",
+        message: "Current password is incorrect",
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({
+      code: 200,
+      status: "success",
+      message: "Password changed successfully",
+    });
+  })
+);
+
+/**
+ * @route   GET /list
+ * @desc    Get all users (Admin only)
+ */
 router.get(
   "/list",
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
 
     res.status(200).json({
-      meta: {
-        message: "Users retrieved successfully",
-        code: 200,
-        status: "success",
-      },
+      code: 200,
+      status: "success",
+      message: "Users retrieved successfully",
       data: users.map(user => ({
         id: user._id,
-        username: user.name,
+        name: user.name,
         email: user.email,
-        address: user.address,
+        phone: user.phone,
         role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
       })),
     });
   })
 );
 
-// /**
-//  * @route   GET /:id
-//  * @desc    Get user by ID
-//  */
-
+/**
+ * @route   GET /:id
+ * @desc    Get user by ID (Admin only)
+ */
 router.get(
   "/:id",
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).select('-password');
+
     if (!user) {
       return res.status(404).json({
         code: 404,
+        status: "error",
         message: "User not found",
-        data: null,
       });
     }
 
     res.status(200).json({
-      meta: {
-        message: "User retrieved successfully",
-        code: 200,
-        status: "success",
-      },
+      code: 200,
+      status: "success",
+      message: "User retrieved successfully",
       data: {
         id: user._id,
-        username: user.name,
+        name: user.name,
         email: user.email,
-        address: user.address,
+        phone: user.phone,
         role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
       },
     });
   })
 );
 
-// /**
-//  * @route   DELETE /delete/:id
-//  * @desc    Delete user by ID
-//  */
+/**
+ * @route   PUT /:id
+ * @desc    Update user by ID (Admin only)
+ */
+router.put(
+  "/:id",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    const schema = {
+      name: { type: "string", optional: true, max: 255 },
+      email: { type: "email", optional: true },
+      phone: { type: "string", optional: true, max: 15 },
+      role: { type: "string", optional: true, enum: ["walikelas", "operator"] }
+    };
 
+    const validation = v.validate(req.body, schema);
+    if (validation !== true) {
+      return res.status(400).json({
+        code: 400,
+        status: "error",
+        message: "Validation failed",
+        data: validation,
+      });
+    }
+
+    const { name, email, phone, role } = req.body;
+
+    // Check if email already exists (excluding current user)
+    if (email) {
+      const existingUser = await User.findOne({
+        email,
+        _id: { $ne: req.params.id }
+      });
+      if (existingUser) {
+        return res.status(400).json({
+          code: 400,
+          status: "error",
+          message: "Email already exists",
+        });
+      }
+    }
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (phone) updateData.phone = phone;
+    if (role) updateData.role = role;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        code: 404,
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      code: 200,
+      status: "success",
+      message: "User updated successfully",
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        updatedAt: user.updatedAt
+      },
+    });
+  })
+);
+
+/**
+ * @route   DELETE /:id
+ * @desc    Delete user by ID (Admin only)
+ */
 router.delete(
-  "/delete/:id",
+  "/:id",
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
     const user = await User.findByIdAndDelete(req.params.id);
@@ -225,12 +442,14 @@ router.delete(
     if (!user) {
       return res.status(404).json({
         code: 404,
+        status: "error",
         message: "User not found",
       });
     }
 
     return res.status(200).json({
       code: 200,
+      status: "success",
       message: "User deleted successfully",
     });
   })

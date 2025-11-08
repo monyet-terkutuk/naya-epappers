@@ -15,6 +15,184 @@ const normalizeDateUrgency = (date) => {
     return (maxUrgency - diffDays) / maxUrgency;
 };
 
+// ✅ GET /summary?year=2025
+router.get(
+    "/summary",
+    isAuthenticated,
+    catchAsyncErrors(async (req, res) => {
+        const year = parseInt(req.query.year) || new Date().getFullYear();
+
+        const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+        const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
+
+        // --- Jalankan aggregate utama ---
+        const summary = await Request.aggregate([
+            {
+                $match: {
+                    date: { $gte: startOfYear, $lte: endOfYear },
+                    category_id: { $type: "objectId" } // 🔒 hanya ObjectId valid
+                },
+            },
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "category_id",
+                    foreignField: "_id",
+                    as: "category",
+                },
+            },
+            { $unwind: "$category" },
+            {
+                $group: {
+                    _id: {
+                        month: { $month: "$date" },
+                        category_id: "$category._id",
+                        category_name: "$category.name",
+                    },
+                    total_request: { $sum: 1 },
+                    total_done: {
+                        $sum: {
+                            $cond: [{ $eq: ["$status", "Selesai"] }, 1, 0],
+                        },
+                    },
+                },
+            },
+            { $sort: { "_id.month": 1 } },
+            {
+                $group: {
+                    _id: "$_id.month",
+                    month: { $first: "$_id.month" },
+                    categories: {
+                        $push: {
+                            category_id: "$_id.category_id",
+                            category_name: "$_id.category_name",
+                            total_request: "$total_request",
+                            total_done: "$total_done",
+                        },
+                    },
+                },
+            },
+            { $sort: { month: 1 } },
+        ]);
+
+        // --- Tambahkan nama bulan dan isi 12 bulan penuh ---
+        const monthNames = [
+            "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+        ];
+
+        // Buat map hasil aggregate (agar pencarian cepat)
+        const summaryMap = new Map(summary.map(item => [item.month, item]));
+
+        // Bangun array lengkap 12 bulan
+        const fullSummary = [];
+        for (let m = 1; m <= 12; m++) {
+            if (summaryMap.has(m)) {
+                fullSummary.push({
+                    month: m,
+                    month_name: monthNames[m],
+                    categories: summaryMap.get(m).categories
+                });
+            } else {
+                fullSummary.push({
+                    month: m,
+                    month_name: monthNames[m],
+                    categories: [] // jika tidak ada data, kosong
+                });
+            }
+        }
+
+        res.status(200).json({
+            code: 200,
+            status: "success",
+            year,
+            data: fullSummary,
+        });
+    })
+);
+
+
+router.get(
+    "/summary/table",
+    isAuthenticated,
+    catchAsyncErrors(async (req, res) => {
+        const year = parseInt(req.query.year) || new Date().getFullYear();
+
+        const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+        const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
+
+        const summary = await Request.aggregate([
+            {
+                $match: {
+                    date: { $gte: startOfYear, $lte: endOfYear },
+                    category_id: { $type: "objectId" },
+                },
+            },
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "category_id",
+                    foreignField: "_id",
+                    as: "category",
+                },
+            },
+            { $unwind: "$category" },
+            {
+                $group: {
+                    _id: {
+                        month: { $month: "$date" },
+                        category_id: "$category._id",
+                        category_name: "$category.name",
+                    },
+                    total_request: { $sum: 1 },
+                    total_done: {
+                        $sum: {
+                            $cond: [{ $eq: ["$status", "Selesai"] }, 1, 0],
+                        },
+                    },
+                },
+            },
+            { $sort: { "_id.month": 1 } },
+            {
+                $group: {
+                    _id: "$_id.month",
+                    month: { $first: "$_id.month" },
+                    categories: {
+                        $push: {
+                            category_id: "$_id.category_id",
+                            category_name: "$_id.category_name",
+                            total_request: "$total_request",
+                            total_done: "$total_done",
+                        },
+                    },
+                },
+            },
+            { $sort: { month: 1 } },
+        ]);
+
+        // 🔧 Buat struktur bulan kosong (1–12)
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        const result = {};
+
+        months.forEach((monthName, index) => {
+            const found = summary.find((s) => s.month === index + 1);
+            result[monthName] = found ? found.categories : [];
+        });
+
+        res.status(200).json({
+            code: 200,
+            status: "success",
+            year,
+            data: result,
+        });
+    })
+);
+
+
 // ✅ GET all requests, sorted using SAW method
 router.get(
     "/list",
@@ -198,5 +376,8 @@ router.delete(
         });
     })
 );
+
+
+
 
 module.exports = router;

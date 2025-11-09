@@ -170,7 +170,6 @@ router.get(
             { $sort: { month: 1 } },
         ]);
 
-        // 🔧 Buat struktur bulan kosong (1–12)
         const months = [
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"
